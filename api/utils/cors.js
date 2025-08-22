@@ -5,6 +5,7 @@ export const ALLOWED_ORIGINS = new Set([
   "https://ryo.lu",
   "http://localhost:3000",
   "http://localhost:5173",
+  "http://localhost:3001",
 ]);
 
 export function getEffectiveOrigin(req) {
