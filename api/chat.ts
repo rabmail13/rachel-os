@@ -688,7 +688,17 @@ export default async function handler(req: Request) {
       );
     });
 
-    const result = streamText({
+    console.log("=== AI MODEL CALL DEBUG ===");
+    console.log("Model:", model);
+    console.log("Selected model instance type:", typeof selectedModel);
+    console.log("Messages count:", enrichedMessages.length);
+    console.log("API Keys status:");
+    console.log("- OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "SET" : "MISSING");
+    console.log("- ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSING");
+    console.log("- GOOGLE_API_KEY:", process.env.GOOGLE_API_KEY ? "SET" : "MISSING");
+    
+    console.log("Attempting to call AI model...");
+    const result = await streamText({
       model: selectedModel,
       messages: enrichedMessages,
       tools: {
@@ -944,16 +954,68 @@ export default async function handler(req: Request) {
       headers,
     });
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("=== CHAT API ERROR ===");
+    console.error("Error type:", error.constructor.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
+    // Log environment variables to check API key availability
+    console.error("=== API KEY STATUS ===");
+    console.error("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "SET" : "MISSING");
+    console.error("ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSING");
+    console.error("GOOGLE_API_KEY:", process.env.GOOGLE_API_KEY ? "SET" : "MISSING");
+    console.error("GOOGLE_GENERATIVE_AI_API_KEY:", process.env.GOOGLE_GENERATIVE_AI_API_KEY ? "SET" : "MISSING");
+    
+    // Log model being used
+    const url = new URL(req.url);
+    const queryModel = url.searchParams.get("model");
+    console.error("Model requested:", queryModel || "default (claude-4)");
+    
+    // Check if it's an API key related error
+    if (error.message?.includes("API key") || 
+        error.message?.includes("authentication") || 
+        error.message?.includes("unauthorized") ||
+        error.message?.includes("401") ||
+        error.message?.includes("403")) {
+      console.error("🚨 LIKELY API KEY ISSUE 🚨");
+      return new Response(JSON.stringify({ 
+        error: "API authentication failed - check API keys",
+        details: error.message 
+      }), {
+        status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": req.headers.get("origin") || "*"
+        }
+      });
+    }
 
     // Check if error is a SyntaxError (likely from parsing JSON)
     if (error instanceof SyntaxError) {
       console.error(`400 Error: Invalid JSON - ${error.message}`);
-      return new Response(`Bad Request: Invalid JSON - ${error.message}`, {
+      return new Response(JSON.stringify({
+        error: "Invalid JSON",
+        details: error.message
+      }), {
         status: 400,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": req.headers.get("origin") || "*"
+        }
       });
     }
 
-    return new Response("Internal Server Error", { status: 500 });
+    // Return detailed error for debugging
+    return new Response(JSON.stringify({
+      error: "Internal Server Error",
+      details: error.message,
+      type: error.constructor.name
+    }), { 
+      status: 500,
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": req.headers.get("origin") || "*"
+      }
+    });
   }
 }

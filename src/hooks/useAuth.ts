@@ -146,12 +146,28 @@ export function useAuth() {
           );
 
           if (!response.ok) {
-            const data = await response.json();
-            setVerifyError(data.error || "Invalid username or password");
+            try {
+              const data = await response.json();
+              setVerifyError(data.error || "Invalid username or password");
+            } catch (jsonError) {
+              console.error("[useAuth] Failed to parse error response as JSON:", jsonError);
+              setVerifyError(`Authentication failed (${response.status})`);
+            }
             return;
           }
 
-          const result = await response.json();
+          let result;
+          try {
+            result = await response.json();
+          } catch (jsonError) {
+            console.error("[useAuth] Failed to parse success response as JSON:", jsonError);
+            console.error("[useAuth] Response status:", response.status);
+            console.error("[useAuth] Response headers:", Object.fromEntries(response.headers.entries()));
+            const responseText = await response.text();
+            console.error("[useAuth] Response text:", responseText);
+            setVerifyError("Server returned invalid response");
+            return;
+          }
           if (result.token) {
             setAuthToken(result.token);
             // Set username from the response to ensure it's properly stored
